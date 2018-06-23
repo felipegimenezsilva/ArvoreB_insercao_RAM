@@ -1,14 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-// 4096 2048
-#define NOS 32
-#define MEI 16
-
+#define NOS 20
+#define MIN 10
+unsigned int quantidadeexistente;
 // quantidade de registros : 	 4,294,967,296		4	G
 // valor máximo unsigned long: 4,294,967,295		
 // registros alocados aprox  : 						64 MB
-// 
 
 typedef struct registro
 {
@@ -17,320 +15,355 @@ typedef struct registro
 	unsigned char outros[1008];//outros campos: 1008 bytes (dados)
 }registro;
 
-typedef struct dat
+typedef struct data
 {
-	unsigned long v; //valor
-	unsigned int b; //bloco
-	struct dat *p;
-}dat;
+	unsigned long v;// valor
+	unsigned int b; // bloco
+	struct data *p; // prox
+	struct data *c; // conflito
+	struct page *d; // direita
+}data;
 
-typedef struct pag
+typedef struct page
 {
-	int q;				//qt ocupada
-	dat **d; 		   //dados
-	struct pag **p;   //pags
-}pag;
+	unsigned int q;	// qt ocupada
+	data *d; 		   // lista dados
+	struct page *e;   // esquerda
+}page;
 
-pag *constroi(pag *p,unsigned long v, unsigned int b);
-/*
-char *busca(dat *d, unsigned long c)
-{
-	pag *p
-	int x= getposD(p,*d);
-		if((*d)->v == p->d[x]->v)
-			printf("FIND!!\n");
-		else if((*d)->v > p->d[x]->v)
-			x++;
-	}
+void exibeDataConflitos(data *d);
 
-	// descendo até o folha
-	if(p->p[x])
-	{
-		*ctrl = *ctrl + 1;
-		biP(p->p[x],d,de,ctrl);
-	}
-}
-*/
-// printa valores dos blocos em pré ordem
-void printP(pag *p)
+data* alocaData(unsigned int v, unsigned int b)
 {
-	int i = 0;
-	printf("(");
-	for( i ; i < p->q ; i++)
-		printf("%lu ",p->d[i]->v);
-	puts(")");
-	for(i=0; i<= p->q ; i++)
-		if(p->p[i])printP(p->p[i]);
+	// alocando data
+	data *nova=(data*)malloc(sizeof(data));
+	
+	// testando alocação 
+	assert(nova);
+	
+	// definindo valores iniciais
+	nova->v = v;
+	nova->b = b;
+	nova->p = NULL;
+	nova->c = NULL;
+	nova->d = NULL;
+	return nova;	
 }
 
-pag* criaP()
+data* insereDataOrdenado(data *lista, data *valor)
 {
-	// criando pagina
-	pag* p=(pag*)malloc(sizeof(pag));
-	assert(p);
-	
-	// criando ponteiro dados
-	p->d=(dat**)malloc(sizeof(dat*)*NOS);
-	assert(p->d);
-	
-	// criando poteiro paginas
-	p->p=(pag**)malloc(sizeof(pag*)*(NOS+1));
-	assert(p->d);
-	
-	// quantidade = 0
-	p->q=0;
-	
-	// zerando valores
-	for(int i=0;i<NOS;i++)
-		p->d[i]=NULL;
-	
-	// zerando ponteiros
-	for(int i=0;i<NOS+1;i++)
-		p->p[i]=NULL;
-	
-	// retornando endereço
-	return p;	
-}
-
-dat* criaD(unsigned long v, unsigned int b)
-{
-	// criando dado
-	dat *d=(dat*)malloc(sizeof(dat));
-	assert(d);
-	
-	// passando valores
-	d->b = b;
-	d->v = v;
-	
-	// retornando endereço
-	return d;
-
-}
-
-void deslocaD(pag *p, unsigned short int s)
-{
-	// obtendo ultima posicao
-	int i = p->q - 1;
-	
-	// deslocando dados
-	for(i;i>=s;i--)
-		p->d[i+1]=p->d[i];
-}
-
-void deslocaP(pag *p, unsigned short int s)
-{
-	// obtendo ultima posicao
-	int i = p->q;
-	
-	// deslocando ponteiros
-	for(i;i>=s;i--)
-		p->p[i+1]=p->p[i];
-}
-
-void insereD(pag *p, dat *d, unsigned short int x)
-{
-	// insere dado na posicao X
-	p->d[x] = d ;
-}
-
-void insereP(pag *p, pag **de, unsigned short int x)
-{
-	// insere ponteiro na esquerda
-	p->p[x]   = de[0];
-	// insere ponteiro na direita
-	p->p[x+1] = de[1];
-}
-
-void repassaD(pag *a, pag *b)
-{
-	// repassando dados a partir do
-	// valor mediano de (a)
-	for(int i=0;i<MEI;i++)
-	{
-		b->d[i] = a->d[MEI + i + 1];
-		a->d[MEI + i + 1] = NULL;
-		a->q= a->q -1;
-	}
-}
-
-void repassaP(pag *a, pag *b)
-{
-	// repassando paginas a partir do
-	// valor ponteiro mediano de (a)
-	for(int i=0;i<=MEI;i++)
-	{
-		b->p[i] = a->p[MEI + i + 1];
-		a->p[MEI + i + 1] = NULL;
-	}
-}
-
-int getposD(pag *p, dat *d)
-{
-	// criando variaveis
-	int i = 0;
-	int f = p->q - 1;
-	int m = m=(i+f)/2;
-	
-	// utilizando busca binaria
-	for(;i<f;)
-	{
-		if(d->v == p->d[m]->v)
-			return m;
-		else if(d->v > p->d[m]->v)
-			i = m + 1;
-		else
-			f = m - 1;
-		m=(i+f)/2;
-	}
-	
-	// não encontrou a posicao
-	// retorna um indice proximo
-	return i;
-}
-
-// insere com deslocamento em P 
-void inP(pag *p, dat *d, pag **de,unsigned short int x)
-{
-	deslocaD(p,x);
-	deslocaP(p,x);
-	insereD(p,d,x);
-	insereP(p,de,x);
-	p->q = p->q + 1;
-}
-
-void realocando(pag *p, int q)
-{
-	
-	int q1 = (q + 0) * sizeof(dat*) ;//168;//
-	int q2 = (q + 1) * sizeof(pag*) ;//printf("Chegoo\n%i, %i\n",q1,q2);//176;//
-	p->p=(pag**)realloc(p->p,q2);//puts("ok X");
-	p->d=(dat**)realloc(p->d,q1);//puts("ok O");
-	
-	
-}
-
-//busca para inserção
-pag* biP(pag *p, dat **d, pag **de, int *ctrl)
-{	
-	// buscando indice chave e indice do ponteiro
-	int x=0;
-	if(p->q > 0){
-		x = getposD(p,*d);
-		if((*d)->v == p->d[x]->v)
-			printf("FIND!!\n");
-		else if((*d)->v > p->d[x]->v)
-			x++;
-	}
-
-	// descendo até o folha
-	if(p->p[x])
-	{
-		*ctrl = *ctrl + 1;
-		biP(p->p[x],d,de,ctrl);
-	}
-	*ctrl = *ctrl - 1;
-	// estamos em um nó folha
-	if(*ctrl >= 0)
-	{
-		if(p->q < NOS)
+	// retornando primeiro como valor
+	// caso não exista lista
+	if(!lista)
+		return valor;
+		
+	// insere inicio ou meio
+	data *first=lista;
+	data *anter=NULL;
+	while(lista)
+		// verificando posição
+		if(valor->v < lista->v)
 		{
-			*ctrl = -1; 
-			// insere com deslocamento
-			inP(p,*d,de,x);
-			return p;
-		}
-		else
-		{
-			// ocorreu uma quebra
-			// aumentando temporariamente tamanho do no
-			//printf("OOO - p->q+1 (%i) p->q+2 (%i) \n",p->q+1,p->q+2);
-			//printf("%x %x\n",p->d,p->p);
-			
-			realocando(p,NOS+1);
-			
-			inP(p,*d,de,x);
-			
-			// repassando valores
-			pag *n = criaP();
-			repassaP(p,n);
-			repassaD(p,n);
-			
-			// escolhendo meio
-			dat *nd = p->d[MEI];
-			
-			// (re)definindo tamanho dos vetores
-			n->q = MEI;
-			p->q = MEI;
-			
-			// realocando matriz
-			//printf("XXX - MEI (%i) MEI+1 (%i) \n",MEI,MEI+1);
-			realocando(p,MEI);			
-	
-			// dado que sobe de nivel
-			*d=nd;
-			// ponteiros direita e esquerda
-			de[0]=p;
-			de[1]=n;
-
-			// nova raiz
-			// caso não haja recursão antrerior
-			if(*ctrl == 0)
+			// obtendo se é o primeiro
+			if(first == lista)
 			{
-				// criando nova raiz
-				int c=1;
-				pag *raiz=criaP();
-				raiz = biP(raiz,d,de,&c);
-				*ctrl = -1;
-				return raiz;
+				// inserção no inicio
+				valor->p = lista;
+				return valor;
 			}
-			return p;
+			else
+			{
+				// inserção no meio
+				valor->p = lista;
+				anter->p = valor;
+				return first;
+			}
+		}
+		// verificando se é conflito
+		else if(valor->v == lista->v)
+		{
+			// inserção na lista de conflitos
+			valor->c = lista->c;
+			lista->c = valor;
+			return first;
+		}
+		// passando para proximo elemento
+		else
+		{
+			// guardando proximo e atual
+			anter = lista;
+			lista = lista->p;
+		}
+	// inserindo no final da lista
+	anter->p = valor;
+	return first;	
+}
+
+data *quebraMeio(data *lista)
+{
+	int i=0;
+	data *ant=NULL;
+	// procurando posição minima
+	while(lista)
+		if(i==MIN)
+		{
+			// quebrando lista
+			ant->p=NULL;
+			return lista;
+		}
+		else
+		{
+			// passando para proxima
+			// iteração
+			i++;
+			ant = lista;
+			lista = lista->p;
+		}
+	// retorna null caso não
+	// consiga chegar ao meio
+	// estabelecido no define
+	return NULL;
+}
+
+page *alocaPage(unsigned int q, data *d, page *esq)
+{
+	// alocando pagina
+	page *nova=(page*)malloc(sizeof(page));
+	
+	// testando alocações
+	assert(nova);
+	
+	// definindo valores iniciais
+	nova->q = q;
+	nova->d = d;
+	nova->e = esq;
+	return nova;
+}
+
+// retorna endereço da sub_página a partir de um valor
+page *buscaDirecao(page *pagina, unsigned long valor)
+{
+	
+	data *dado = pagina->d;
+	pagina = pagina->e;
+
+	while(dado && pagina)
+		if(valor > dado->v)
+		{
+			pagina = dado->d;
+			dado = dado->p;
+		}
+		else
+			return pagina;
+	return pagina;
+}
+
+data *buscaChave(page *pagina,unsigned long valor)
+{
+	data *dado = pagina->d;
+	while(dado)
+		if(dado->v==valor)
+			return dado;
+		else
+			dado=dado->p;
+	return NULL;
+}
+
+void exibeData(page *p)
+{
+	if(!p) return;
+	
+	data *d = p->d;
+	
+	printf("(");
+	while(d)
+	{
+		quantidadeexistente++;
+		printf(" %lu ",d->v);
+		if(d->c) exibeDataConflitos(d->c);
+		d = d->p;
+	}
+	puts(")");
+	
+	d=p->d;
+	if(p->e)
+		exibeData(p->e);
+	while(d)
+	{
+		exibeData(d->d);
+		d = d->p;
+	}
+	
+}
+
+void exibeDataConflitos(data *d)
+{
+	printf("{");
+	while(d)
+	{
+		printf(" %lu ",d->v);
+		d = d->c;
+	}
+	printf("} ");
+}
+
+void insereAB(page *pagina, data **dado, int *controle)
+{
+
+	// verificando se houve conflito de valores nessa pagina
+	data *buscaC = buscaChave(pagina,(*dado)->v);
+	
+	// caso ocorreu o conflito de valores
+	if(buscaC)
+	{
+   	puts("bateu");//------------------------------------
+   	quantidadeexistente++;
+		pagina->d = insereDataOrdenado(pagina->d,*dado);
+		*controle = -1;
+		return ;
+	}
+	else
+	{
+		// procurando por sub pagina
+		page *buscaP = buscaDirecao(pagina,(*dado)->v);
+		
+		// não estamos no folha
+		if(buscaP)
+		{
+			// descendo até os folhas
+			insereAB(buscaP,dado,controle);
+		}
+		if(*controle > 0)
+		{
+			// nessa a partir dessa linha, subiremos na recursão
+			if(pagina->q < NOS)
+			{ 
+				// inserindo tranquilamente em uma pagina
+				pagina->d = insereDataOrdenado(pagina->d,*dado);
+				pagina->q = pagina->q + 1;
+				*controle = -1;
+				return ;
+			}
+			else
+			{
+				// caso de quebra
+				pagina->d = insereDataOrdenado(pagina->d,*dado);
+				// quebrando a partir do meio
+				data *quebra = quebraMeio(pagina->d);
+				// definindo tamanho da lista
+				pagina->q=MIN;
+				//definindo valor do meio
+				*dado = quebra;
+				// guardando endereço
+				page *aux=quebra->d;
+				// removendo meio da lista
+				quebra = quebra->p;
+				(*dado)->p=NULL;
+				// criando novo bloco
+				page *nova=alocaPage(MIN,quebra,NULL);
+				// passando valor da esquerda
+				nova->e = aux;
+				// dado apontando para direita
+				(*dado)->d=nova;
+				return;
+			}
 		}
 	}
-	return p;
 }
 
-pag *constroi(pag *p,unsigned long v, unsigned int b)
+
+page *insereArvoreB(page *pagina, unsigned long valor, unsigned int bloco)
 {
-	if(!p) p = criaP();
-	pag *d=NULL, *e=NULL;
-	pag **de=(pag**)malloc(sizeof(pag*)*2);
-	de[0]=d;
-	de[1]=e;
-	int ctrl = 1;
-	dat *dado=criaD(v,b);
-	p = biP(p,&dado,de,&ctrl);
-	free(de);	
-	return p;
+	if(!pagina) pagina=alocaPage(0,NULL,NULL);
+	data *inserir = alocaData(valor,bloco);
+	int controle = 1;
+	insereAB(pagina,&inserir,&controle);
+	
+	// houve aumento no tamanho da arvore
+	if(controle == 1)
+	{
+		page *raiz=alocaPage(1,inserir,pagina);
+		return raiz;	
+	}
+	return pagina;	
 }
 
-pag *read(FILE *arq)
+
+page *read(FILE *arq)
 {
 	unsigned int i=0;
-	pag *p=NULL;
+	page *p=NULL;
 	registro reg[4];
 	
 	while(!feof(arq))
 	{
 		fread(reg,sizeof(registro),4,arq);
-		p=constroi(p,reg[0].chave,i);
-		p=constroi(p,reg[1].chave,i);
-		p=constroi(p,reg[2].chave,i);
-		p=constroi(p,reg[3].chave,i);
+		p=insereArvoreB(p,reg[0].naochave,i);
+		p=insereArvoreB(p,reg[1].naochave,i);
+		p=insereArvoreB(p,reg[2].naochave,i);
+		p=insereArvoreB(p,reg[3].naochave,i);
 		i++;
 	}
-	
 	return p;
+}
+
+data *pesquisa(page *pagina, unsigned long chave)
+{
+	data *buscaC = buscaChave(pagina,chave);
+	if(!buscaC)
+	{
+		page *buscaP = buscaDirecao(pagina,chave);
+		if(buscaP)
+			return pesquisa(buscaP,chave);
+		else
+			return NULL;
+	}
+	return buscaC;
+}
+
+void acesso(FILE *file,data *dado)
+{
+	registro r[4];
+	while(dado)
+	{
+		fseek(file,4096*dado->b,SEEK_SET);
+		fread(r,sizeof(registro),4,file);
+		for(int i=0;i<4;i++)
+		{
+			if(r[i].naochave == dado->v)
+				printf("\n\nbloco: %d\nchave: %lu\nnao chave: %lu\n outros:\n%s\n",dado->b,r[i].chave,r[i].naochave,r[i].outros);
+		}
+		dado = dado->c;
+	}
+	
 }
 
 
 int main()
 {
+	quantidadeexistente=0;
 	FILE *arq = fopen("base.bin","rb");
 	if(!arq)puts("Não foi possivel ler o arquivo");
-	pag *p=read(arq);
+	page *pagina=read(arq);	
+	//page *pagina=temporario();
+	data *b;
 	
+	printf("Quantidade de nos existentes=%lu\n",quantidadeexistente);
+	unsigned long p;
+	while(1)
+	{
+		puts("Digite o nao chave:");
+		scanf("%lu",&p);
+		b=pesquisa(pagina,p);
+		acesso(arq,b);
+		if(!b)
+			puts("não deu boa");
+	}
 	
-	fclose(arq);	
-	//printP(p);
+	//printf("%lu %i\n",b->v,b->b);
+	
+	fclose(arq);
+	//
+	//exibeData(pagina);
 
 }
